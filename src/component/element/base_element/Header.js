@@ -215,6 +215,7 @@ export const getObjectFromKML_NEN2 = (path_folder, xml, list_group_duong_cot) =>
 export default function Header () {
   const dispatch = useDispatch()
   const [isDrawingGrid, setIsDrawingGrid] = useState(false)
+  const [isLoadingKML, setIsLoadingKML] = useState(false)
   
   // Get state to check if columns are selected
   const control_xoa_nhieu_cot = useSelector(state => state.baseMap.control_xoa_nhieu_cot)
@@ -251,20 +252,40 @@ export default function Header () {
         console.log(`End points: ${coordinates.filter(p => p.isEnd).length}`)
         console.log(`Inner points: ${coordinates.filter(p => p.isInner).length}`)
         
-        // Hiển thị thông tin và cho phép xuất file KML
-        const message = `Đã tạo lưới với ${coordinates.length} điểm.\n\nBạn có muốn xuất tọa độ ra file KML không?`
-        if (window.confirm(message)) {
-          try {
-            console.log('Bắt đầu gọi hàm exportGridCoordinatesToKML')
-            exportGridCoordinatesToKML(coordinates)
-            console.log('Đã gọi hàm exportGridCoordinatesToKML')
-          } catch (error) {
-            console.error('Lỗi khi gọi exportGridCoordinatesToKML:', error)
-            window.alert(`Lỗi khi xuất file KML: ${error.message}`)
-          }
-        } else {
-          console.log('Người dùng đã hủy xuất KML')
-        }
+        // Hiển thị loading NGAY SAU KHI chọn điểm thứ 2
+        // Loading sẽ hiển thị trong lúc xử lý và xuất KML
+        setIsLoadingKML(true)
+        
+        // Sử dụng requestAnimationFrame để đảm bảo React kịp render loading TRƯỚC khi hiển thị confirm
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            // Delay để đảm bảo loading overlay được render và hiển thị trên màn hình
+            setTimeout(() => {
+              // Hiển thị thông tin và cho phép xuất file KML
+              const message = `Đã tạo lưới với ${coordinates.length} điểm.\n\nBạn có muốn xuất tọa độ ra file KML không?`
+              
+              if (window.confirm(message)) {
+                console.log('Bắt đầu gọi hàm exportGridCoordinatesToKML')
+                // Xuất KML ngay - loading đã được hiển thị rõ ràng trên màn hình
+                try {
+                  exportGridCoordinatesToKML(coordinates)
+                  console.log('Đã gọi hàm exportGridCoordinatesToKML')
+                  // Tắt loading sau khi xuất xong (sau khi alert đóng)
+                  setTimeout(() => {
+                    setIsLoadingKML(false)
+                  }, 500)
+                } catch (error) {
+                  console.error('Lỗi khi gọi exportGridCoordinatesToKML:', error)
+                  window.alert(`Lỗi khi xuất file KML: ${error.message}`)
+                  setIsLoadingKML(false)
+                }
+              } else {
+                console.log('Người dùng đã hủy xuất KML')
+                setIsLoadingKML(false)
+              }
+            }, 300) // Delay 300ms để đảm bảo loading được render và hiển thị TRƯỚC khi confirm
+          })
+        })
       })
       window.alert('Vui lòng click 2 lần trên bản đồ để tạo lưới:\n- Click lần 1: Chọn điểm đầu\n- Click lần 2: Chọn điểm cuối\n\nCác điểm sẽ được tạo cách nhau 5m')
     }
@@ -448,11 +469,25 @@ export default function Header () {
     })
   }, [])
   return (
-    <header
-      id='header'
-      style={{ maxWidth: '100vw', overflowX: 'auto' }}
-      className='navbar  navbar-expand-lg navbar-sticky navbar-height navbar-flush navbar-container navbar-bordered'
-    >
+    <>
+      <style>{`
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+        .spinner {
+          animation: spin 1s linear infinite;
+        }
+      `}</style>
+      <header
+        id='header'
+        style={{ maxWidth: '100vw', overflowX: 'auto' }}
+        className='navbar  navbar-expand-lg navbar-sticky navbar-height navbar-flush navbar-container navbar-bordered'
+      >
       <div className=' d-flex'>
         <div className='navbar-brand-wrapper'>
           {/* Logo */}
@@ -754,5 +789,63 @@ export default function Header () {
         {/* End Secondary Content */}
       </div>
     </header>
+    
+    {/* Loading overlay toàn màn hình khi đang xuất KML */}
+    {isLoadingKML && (
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: 'white',
+            padding: '30px 50px',
+            borderRadius: '10px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '20px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+          }}
+        >
+          <svg
+            width='50'
+            height='50'
+            viewBox='0 0 24 24'
+            fill='none'
+            stroke='#007bff'
+            strokeWidth='2'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+            className='spinner'
+            style={{
+              display: 'block'
+            }}
+          >
+            <circle cx='12' cy='12' r='10' opacity='0.3' />
+            <path 
+              d='M12 2 A10 10 0 0 1 22 12' 
+              strokeDasharray='31.416' 
+              strokeDashoffset='15.708'
+              strokeLinecap='round'
+            />
+          </svg>
+          <div style={{ fontSize: '16px', fontWeight: '500', color: '#333' }}>
+            Đang xuất file KML...
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
